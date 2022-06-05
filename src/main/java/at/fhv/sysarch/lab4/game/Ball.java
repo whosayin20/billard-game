@@ -55,7 +55,7 @@ public enum Ball {
         return this == WHITE;
     }
 
-    private Ball(Color c, boolean solid) {
+    Ball(Color c, boolean solid) {
         this.c = c;
         this.solid = solid;
 
