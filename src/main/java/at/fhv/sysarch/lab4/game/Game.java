@@ -37,20 +37,23 @@ public class Game implements BallsCollisionListener, BallPocketedListener, Objec
 
     private boolean ballsPocketedInRound;
 
-    private boolean whiteBallTouchedOtherBalls = false;
+    private boolean whiteBallTouchedOtherBalls;
 
-    private boolean whiteBallTouched = false;
+    private boolean whiteBallTouched;
 
-    private boolean whiteBallPocketed = false;
+    private boolean whiteBallPocketed;
 
-    private boolean foul = false;
+    private boolean foul;
+
+    private boolean roundRunning;
 
     private Vector2 preFoulPos;
 
-    private String[] interjections = {"Nice!", "Wow!", "Very good!", "Excellent!", "Pro!"};
+    private String[] interjections = {"Nice!", "Wow!", "Very good!", "Excellent!", "Pro!", "Amazing!"};
 
     private int index = 0;
 
+    private Table table;
 
     public Game(Renderer renderer, Physics physics) {
         this.renderer = renderer;
@@ -101,7 +104,6 @@ public class Game implements BallsCollisionListener, BallPocketedListener, Objec
             } catch (IllegalArgumentException ex) { /*ignore*/ }
 
             if (result) {
-                System.out.println("We hit something");
                 Body body = results.get(0).getBody();
                 if (body.getUserData() instanceof Ball) {
                     Ball b = (Ball) body.getUserData();
@@ -122,9 +124,6 @@ public class Game implements BallsCollisionListener, BallPocketedListener, Objec
         double x = e.getX();
         double y = e.getY();
 
-        double pX = renderer.screenToPhysicsX(x);
-        double pY = renderer.screenToPhysicsY(y);
-
         Point2D mouseDraggedPoint = new Point2D(x, y);
         Point2D cueLength = calculateMaxCueLength(mousePressedPoint, mouseDraggedPoint);
         Point2D newEnd = mousePressedPoint.add(cueLength);
@@ -143,7 +142,7 @@ public class Game implements BallsCollisionListener, BallPocketedListener, Objec
         return new Point2D(cueDistanceVec.getX() * cueLength, cueDistanceVec.getY() * cueLength);
     }
 
-    private void placeBalls(List<Ball> balls) {
+    private void placeBalls(List<Ball> balls, boolean ignoreTopSpot) {
         Collections.shuffle(balls);
 
         // positioning the billard balls IN WORLD COORDINATES: meters
@@ -170,6 +169,10 @@ public class Game implements BallsCollisionListener, BallPocketedListener, Objec
                 col++;
                 colSize--;
             }
+
+            if (ignoreTopSpot && 1 == colSize) {
+                return;
+            }
         }
     }
 
@@ -181,13 +184,13 @@ public class Game implements BallsCollisionListener, BallPocketedListener, Objec
                 continue;
             balls.add(b);
         }
-        this.placeBalls(balls);
+        this.placeBalls(balls, false);
 
         Ball.WHITE.setPosition(Table.Constants.WIDTH * 0.25, 0);
         physics.getWorld().addBody(Ball.WHITE.getBody());
         renderer.addBall(Ball.WHITE);
 
-        Table table = new Table();
+        table = new Table();
         physics.getWorld().addBody(table.getBody());
         renderer.setTable(table);
 
@@ -197,7 +200,6 @@ public class Game implements BallsCollisionListener, BallPocketedListener, Objec
     @Override
     public void onBallsCollide(Ball b1, Ball b2) {
         if (b1.isWhite() && !b2.isWhite() || !b1.isWhite() && b2.isWhite()) {
-            System.out.println("balls collided!");
             whiteBallTouchedOtherBalls = true;
         }
     }
@@ -217,6 +219,7 @@ public class Game implements BallsCollisionListener, BallPocketedListener, Objec
             removeBall(b);
             interjectionMessage();
         } else {
+            //ball without hitting white ball pocketed
             foul = true;
             removeBall(b);
         }
@@ -252,17 +255,19 @@ public class Game implements BallsCollisionListener, BallPocketedListener, Objec
         whiteBallPocketed = false;
         whiteBallTouched = false;
         foul = false;
+        roundRunning = false;
     }
 
-    private void clearMessages() {
-        renderer.setFoulMessage("");
+    private void clearMessage() {
         renderer.setActionMessage("");
+        renderer.setFoulMessage("");
     }
 
     @Override
     public void onEndAllObjectsRest() {
         //System.out.println("movement ended");
-        this.ballsMoving = false;
+        ballsMoving = false;
+        roundRunning = true;
 
         if (whiteBallPocketed && foul) {
             renderer.setFoulMessage("Foul! White ball pocketed");
@@ -288,11 +293,32 @@ public class Game implements BallsCollisionListener, BallPocketedListener, Objec
             preFoulPos = Ball.WHITE.getBody().getTransform().getTranslation();
         }
 
+        resetBalls();
+    }
 
+    private void resetBalls() {
+        if (pocketedBalls.size() >= 14) {
+            List<Ball> balls = new ArrayList<>();
+
+            for(Ball b : Ball.values()) {
+                if(b.isWhite() || !pocketedBalls.contains(b)) { //continue if the ball is white or the ball is not pocketed
+                    continue;
+                }
+                balls.add(b);
+            }
+
+            Ball.WHITE.setPosition(Table.Constants.WIDTH * 0.25, 0);
+            placeBalls(balls, true);
+            table = new Table();
+            physics.getWorld().removeBody(table.getBody());
+            physics.getWorld().addBody(table.getBody());
+            renderer.setTable(table);
+            pocketedBalls.clear();
+        }
     }
 
     private void switchPlayer() {
-        renderer.setActionMessage("Change Player!");
+        renderer.setActionMessage("Instruction: Change Player!");
         if (currPlayer.getName().equals(PLAYER2)) {
             currPlayer = player1;
             renderer.setStrikeMessage("Strike " + currPlayer.getName());
@@ -307,6 +333,11 @@ public class Game implements BallsCollisionListener, BallPocketedListener, Objec
         //System.out.println("moving currently");
         this.ballsMoving = true;
 
-
+        if (!roundRunning) {
+            return;
+        }
+        clearMessage();
+        roundRunning = false;
+        ballsPocketedInRound = false;
     }
 }
