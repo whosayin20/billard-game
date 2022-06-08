@@ -315,14 +315,13 @@ public class Renderer extends AnimationTimer {
     }
 
     public enum CueDrawingState {
-        NONE,
         PRESSED,
         DRAGGED,
         RELEASED
     }
 
     private final Physics physics;
-    private CueDrawingState drawingState = CueDrawingState.NONE;
+    private CueDrawingState drawingState = CueDrawingState.RELEASED;
     private double cueStartX;
     private double cueStartY;
     private double cueEndX;
